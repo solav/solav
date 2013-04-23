@@ -1,0 +1,54 @@
+#input {
+    float:left;
+    color:black;
+    width: 350px;
+    border-right: 3px solid black; 
+    border-bottom: 3px solid black;
+    border-top: 3px solid black;
+    height: 700px;
+    padding-right: 50px;
+    padding-left: 50px;
+}
+
+#seqh{
+    color:green;
+}
+
+#seqv{
+    color:blue;
+}
+
+#graph {
+	float:left;
+    color:blue;
+    width: 600px ;
+    border: 3px solid black; 
+    height: 700px;
+    padding-right: 50px;
+}
+
+.clear { clear:both;}
+
+#output {
+    width: 1097px;
+    height: 52px;
+    font-family:"Courier New", Courier, serif;
+    overflow:auto;
+    clear:both;
+    border: 3px solid black; 
+    border-top: 0px;
+    padding:3px;
+}
+
+#seqv_result{
+    color:blue;
+    overflow:auto;
+    white-space: nowrap
+}
+
+#seqh_result{
+    color:green;
+    white-space: nowrap
+}
+
+

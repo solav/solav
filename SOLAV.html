@@ -1,0 +1,258 @@
+<html>
+
+<head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <script src="scoring_matrixes.js" > </script>
+    <script src="waterman-eggert.js" /></script>
+    <script src="kinetic.js"></script>
+    <script src="tests.js"></script>
+
+    <link rel="stylesheet" type="text/css" href="watermaneggert.css" />
+</head>
+
+<body>
+    <div id="graph"></div>
+    <div id="input"> 
+        
+        <h2 align="center">Sub-Optimal Local <br>Alignment Visualization</h2> 
+
+
+        <b> Sequences: </b> <br>
+        S1 <br>
+
+        <textarea name="seqh" id="seqh" rows="6" cols="40" title="Accepts any sequence of alphabet ARNDCQEGHILKMFPSTWYVBZX. Numbers and colons are ignored"></textarea>
+        S2 <br> 
+
+        <textarea name="seqv" id="seqv" rows="6" cols="40" title="Accepts any sequence of alphabet ARNDCQEGHILKMFPSTWYVBZX. Numbers and colons are ignored"></textarea>
+        <span > 
+        <!-- This is just for demonstration purposes --> 
+        <input type="submit" value="Generate sequences"  onclick="fill_sequences()" /> of length:  </span>  <input name="k" id="seq_length" size="4"  type="text" value="75" /><br> <br>
+
+        <b>Gap:</b> <br>
+        Open Penalty:  <input name="gapopen_pen" id="gapopen_pen" size="3" value="10" title="" type="text"/>
+        Extend Penalty:  <input name="gapextend_pen" id="gapextend_pen" size="3" value="2" type="text" /><br>
+
+        <br>
+
+        <b> Scoring matrix:</b> <br>
+            <select id="select_matrix"> 
+            </select><br><br>
+        <b>Algorithm:</b> <br>
+        <label> <input type="radio" id="k_best_button" name="algorithm" value="k_best_alignments" checked /> k-best alignments </label><br>
+        <label> <input type="radio" id= "waterman_eggert_button" name="algorithm" value="waterman_eggert"/> Waterman-Eggert algorithm with threshold </label><br> <br>
+
+        <div id="k_best_div">
+           <b> Number of alignments: </b> 
+           <input name="k" id="k" size="4"  type="text" value="5"><br>
+        </div>
+        <div id="waterman_eggert_div" style = "display:none">
+            <b> Visualize alignments above this score: </b>
+            <input name="threshold" id="threshold" size="4"  type="text" value="100"><br>
+        </div>
+    <br>
+    <input type="submit" value="Run" style="width:300px; height:30px" onclick="draw_alignments()" />
+    </div>
+
+<div id="output" >
+    <span id="seqh_result"></span>
+    <br>
+    <span id="seqv_result"></span>
+</div>
+
+<script defer="defer">
+    function fill_sequences(){
+        // for demo purposes
+        var n =  document.getElementById('seq_length').value
+        document.getElementById('seqh').value = randomString(n);
+        document.getElementById('seqv').value = randomString(n);
+    }
+
+    function collect_input(){
+        var seqh = document.getElementById('seqh').value.replace(/;*\n|>*\n|[^A-Za-z]/g, "").toUpperCase();
+        var seqv = document.getElementById('seqv').value.replace(/;*\n|>*\n|[^A-Za-z]/g, "").toUpperCase();
+        var gapopen_pen = parseInt(document.getElementById('gapopen_pen').value)
+        var gapextend_pen = parseInt(document.getElementById('gapextend_pen').value)
+        var scorematrix = document.getElementById('select_matrix').value
+   
+        var n = document.getElementById('k_best_button').checked ? document.getElementById('k').value : document.getElementById('threshold').value                
+        return  [gapopen_pen,  gapextend_pen,seqh, seqv,scorematrix, n] //these may come in handy
+    }
+    
+    var stage = new Kinetic.Stage({
+        container:"graph",
+        width: 625,
+        height: 625
+    });
+    var layer = new Kinetic.Layer();
+    var infoLayer = new Kinetic.Layer()
+    
+    function write_score(score, position) {
+        var mousept = stage.getMousePosition()
+        var score_string = "Score: " + score
+        var context = infoLayer.getContext();
+        var string_length = context.measureText(score_string)
+        
+        infoLayer.clear()
+        context.font = '14pt Calibri';
+        context.lineWidth=2
+        context.strokeStyle='black'
+        context.strokeText(score_string, mousept.x + 6 ,mousept.y-18);
+        context.fillStyle = 'red';
+        context.fillText(score_string, mousept.x + 6 ,mousept.y-18);
+
+    }
+    
+    function draw_alignments(){
+        layer.removeChildren()
+        infoLayer.removeChildren()
+        
+        document.getElementById("seqh_result").innerHTML = '<font color="black"> Click alignment to see details </font>';        
+        document.getElementById("seqv_result").innerHTML = "";
+        layer.draw()                
+        var algorithm = (document.getElementById('k_best_button').checked ?  k_best_scores: waterman_eggert)
+        
+        var params = collect_input()
+        var results = algorithm.apply(this,params)
+        if (results.length==0){
+            infoLayer.getContext().fillText("There are no alignments with that score", 100,100);
+            return
+        }
+
+        var lines = []
+        var margin= 50
+        var final_margin = 50 //so that score characters are cut off a little less.
+        var seqh = params[2]
+        var seqv = params[3]
+        var maxscore = results[0].score
+        var maxwidth = 15
+
+        var horizontal_factor = (stage.getWidth()-margin-final_margin)/seqh.length  //seqh
+        var vertical_factor = (stage.getHeight()-margin-10)/seqv.length  //seqv
+
+
+      for (i=0; i < seqh.length; i++){
+            if (seqv.length < 100 && seqh.length < 100){
+                layer.add(new Kinetic.Text({
+                    x: margin + (i+0.5)*horizontal_factor,
+                    y: margin/2,
+                    text: seqh[i],
+                    fontSize: 10,
+                    fill:'green'
+                }))}
+            else {
+                layer.add(new Kinetic.Rect({
+                    x: margin + (i+0.5)*horizontal_factor,
+                    y: margin/2,
+                    width: 1 ,
+                    height: 1,
+                    stroke: 'green',
+                    strokeWidth: 1
+                }));
+            }
+        }
+        for (i=0; i < seqv.length; i++){
+             if (seqv.length < 100 && seqh.length < 100){
+                 layer.add(new Kinetic.Text({
+                    x: margin/2,
+                    y: margin + (i+0.5)*vertical_factor,
+                    text: seqv[i],
+                    fontSize: 10,
+                    fill:'blue',
+                    align:'center'
+                 }))}
+            else {
+                layer.add(new Kinetic.Rect({
+                    x: margin/2,
+                    y: margin + (i+0.5)*vertical_factor,                
+                    width: 1 ,
+                    height: 1,
+    
+
+                    stroke: 'blue',
+                    strokeWidth: 1
+                }));
+            }
+            
+        }
+    
+        
+        for (i=0; i < results.length; i++){
+            var path = results[i].path
+            if (path.length==0)
+                continue
+            path.push({col : path[path.length-1].col-1, row : path[path.length-1].row-1 }) //to start from the top left corner of the first "box" in the alignment
+            var alignment_path = path.map(function(x) { return [margin + (x.col) * horizontal_factor, (x.row) * vertical_factor + margin]}) 
+
+            lines.push(new Kinetic.Line({
+                points: alignment_path,
+                stroke:'black',
+                strokeWidth: Math.max(3, results[i].score/maxscore*maxwidth),
+                lineJoin: 'round',
+                lineCap: 'round',
+                info:results[i]
+
+            }))
+            
+            layer.add(lines[i]);
+        }
+        var highlighted = lines[0];
+        for (i=0; i<lines.length; i++){
+            lines[i].on('mouseover', function(){ write_score(this.attrs.info.score); })
+            lines[i].on('mouseout', function(){ infoLayer.clear() })
+            lines[i].on('click',function(){
+                highlighted.setStroke('black');
+                this.setStroke('red');
+                highlighted = this;
+                layer.draw()
+                var start_seqh = (this.attrs.info.start_col + "      ").slice(0,6).replace(/\ /g, "&nbsp;");
+                var start_seqv = (this.attrs.info.start_row + "      ").slice(0,6).replace(/\ /g, "&nbsp;");
+                var end_seqh = ("     " + (this.attrs.info.path[0].col+1)).replace(/\ /g, "&nbsp;");
+                var end_seqv =("     " + (this.attrs.info.path[0].row+1)).replace(/\ /g, "&nbsp;");
+
+                document.getElementById("seqh_result").innerHTML = start_seqh + this.attrs.info.seqh_result + end_seqh;
+                document.getElementById("seqv_result").innerHTML = start_seqv + this.attrs.info.seqv_result + end_seqv;                
+            });
+        }
+        stage.add(layer);
+        stage.add(infoLayer);
+    }
+</script>  
+<script type="text/javascript">
+            //Set up the algorithm input forms to be dynamic depending on algorithm
+
+            var k_best_button = document.getElementById("k_best_button")
+            k_best_button.onclick = function(){
+                document.getElementById("k_best_div").style.display = "inline"
+                document.getElementById("waterman_eggert_div").style.display = "none"
+            }
+            var waterman_eggert_button = document.getElementById("waterman_eggert_button")
+            waterman_eggert_button.onclick = function(){
+                document.getElementById("k_best_div").style.display = "none"
+                document.getElementById("waterman_eggert_div").style.display = "inline"
+            }
+            
+            
+
+            //Set up the scoring matrices and give them tooltips
+            var select = document.getElementById("select_matrix");
+            var options = ["BLOSUM100", "BLOSUM30", "BLOSUM35", "BLOSUM40", "BLOSUM45", "BLOSUM50", "BLOSUM55", "BLOSUM60", "BLOSUM62", "BLOSUM65", "BLOSUM70", "BLOSUM75", "BLOSUM80", "BLOSUM85", "BLOSUM90", "BLOSUMN", "IDENTITY", "MATCH", "PAM10", "PAM100", "PAM110", "PAM120", "PAM130", "PAM140", "PAM150", "PAM160", "PAM170", "PAM180", "PAM190", "PAM20", "PAM200", "PAM210", "PAM220", "PAM230", "PAM240", "PAM250", "PAM260", "PAM270", "PAM280", "PAM290", "PAM30", "PAM300", "PAM310", "PAM320", "PAM330", "PAM340", "PAM350", "PAM360", "PAM370", "PAM380", "PAM390", "PAM40", "PAM400", "PAM410", "PAM420", "PAM430", "PAM440", "PAM450", "PAM460", "PAM470", "PAM480", "PAM490", "PAM50", "PAM500", "PAM60", "PAM70", "PAM80", "PAM90"]
+            for(var i = 0; i < options.length; i++) {
+                var mat = options[i];
+                var opt = document.createElement("option");
+                opt.innerHTML= mat;
+                
+                opt.title= get_pretty_scoring_matrix(mat);
+                opt.value = mat;
+                select.appendChild(opt);
+            }
+
+        
+        </script>  
+
+<script type="text/javascript">
+    
+</script>
+
+</body>
+</html>
